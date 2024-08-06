@@ -1,5 +1,16 @@
 # SummerhouseFlipped — A [Summerhouse](https://store.steampowered.com/app/2533960/SUMMERHOUSE/) Mod
 
+
+## Todo
+
+
+- [ ] In very early stages, so no download yet, but I'll get one up soon.
+- [ ] Build instructions for devs
+
+
+## Implemented
+Increase minimum and maximum depth of block placement
+
 ## Ideas
 
 - Auto weather & day night cycle.
