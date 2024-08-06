@@ -9,3 +9,4 @@
 - Way to add models/blocks
     - This would be difficult, me thinks.
 - Don't pause on defocus https://steamcommunity.com/app/2533960/discussions/0/4418676821641523810/
+- Vertical flip 
