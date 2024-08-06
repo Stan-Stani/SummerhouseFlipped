@@ -1,4 +1,4 @@
-# SummerhouseMods
+# SummerhouseFlipped — A Summerhouse Mod
 
 ## Ideas
 
