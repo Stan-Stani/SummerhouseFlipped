@@ -2,9 +2,9 @@
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.1</TargetFramework>
-		<AssemblyName>StanPlugin</AssemblyName>
-		<Product>Stan Plugin</Product>
-		<Version>1.0.0</Version>
+		<AssemblyName>com.seldoncortex.summerhouseflipped</AssemblyName>
+		<Product>SummerhouseFlipped</Product>
+		<Version>0.0.0</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<LangVersion>latest</LangVersion>
 		<RestoreAdditionalProjectSources>
@@ -12,8 +12,8 @@
 			https://nuget.bepinex.dev/v3/index.json;
 			https://nuget.samboy.dev/v3/index.json
 		</RestoreAdditionalProjectSources>
-		<RootNamespace>StanPlugin</RootNamespace>
-		<BaseOutputPath>C:\Users\ISLAU\Coding\C#\SummerhouseMod\MyFirstPlugin\bin</BaseOutputPath>
+		<RootNamespace>SummerhouseFlipped</RootNamespace>
+		<BaseOutputPath>.\bin</BaseOutputPath>
 	</PropertyGroup>
 
 	<ItemGroup>

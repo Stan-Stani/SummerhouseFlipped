@@ -30,9 +30,10 @@ if (-not $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH) {
     throw "SUMMERHOUSE_EXECUTABLE_DIR_PATH is not set. Please check your env or env.local file."
 }
 
+New-Item -Path (Join-Path $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH '\BepInEx\plugins\') -ItemType "directory" -Name SummerhouseFlipped
 Remove-Item -Force (Join-Path $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH '\BepInEx\plugins\SummerhouseFlipped\*')
 
-Copy-Item -Recurse -Force '.\bin\Debug\netstandard2.1\*' (Join-Path $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH 'BepInEx\plugins')
+Copy-Item -Recurse -Force '.\bin\Debug\netstandard2.1\*' (Join-Path $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH 'BepInEx\plugins\SummerhouseFlipped\')
 
 
 # Define the path to your game executable

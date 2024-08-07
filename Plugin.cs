@@ -3,7 +3,6 @@ using BepInEx.Logging;
 using HarmonyLib;
 using System.Reflection;
 using System.Linq;
-using StanPlugin;
 using UnityEngine;
 using System.Diagnostics;
 using static BuildingBlock;
@@ -11,19 +10,37 @@ using System.Collections.Generic;
 using UnityEngine.TextCore.Text;
 
 
-namespace StanPlugin
+namespace SummerhouseFlipped
+
+
 {
+
+    public static class Log
+    {
+        internal static ManualLogSource Logger { get; set; }
+
+        public static void Info(string message) => Logger.LogInfo(message);
+        public static void Warn(string message) => Logger.LogWarning(message);
+        public static void Error(string message) => Logger.LogError(message);
+        public static void Debug(string message) => Logger.LogDebug(message);
+    }
+
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
     {
-        internal static ManualLogSource PluginLogger;
+
         private Harmony harmony;
+
+        internal static ManualLogSource PluginLogger;
+
+        // Global state, cuz I'm dumb and lazy
+        internal static bool isBlockPlacerFlippedY = false;
+        internal static int yFlipCount = 0;
 
         private void Awake()
         {
-            // Plugin startup logic
-            PluginLogger = Logger;
-            PluginLogger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+            Log.Logger = Logger;
+            Log.Info($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
             harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
@@ -44,7 +61,7 @@ namespace StanPlugin
             [HarmonyPrefix]
             public static void Prefix()
             {
-                Plugin.PluginLogger.LogInfo($"BuildingBlockPicker awakening");
+                Log.Info($"BuildingBlockPicker awakening");
             }
         }
 
@@ -64,7 +81,7 @@ namespace StanPlugin
             [HarmonyPrefix]
             public static bool Prefix(ref object __result)
             {
-                Plugin.PluginLogger.LogInfo($"BuildingBlockPicker getting next block");
+                Log.Info($"BuildingBlockPickerYOOO");
                 // If you want to completely override the original method:
                 // __result = YourCustomImplementation();
                 // return false;
@@ -76,11 +93,11 @@ namespace StanPlugin
 
 
 
-                ;
+
 
 
                 //FieldInfo paddingField = AccessTools.Field(typeof(BuildingBlockGridGenerator), "padding");
-                //Plugin.PluginLogger.LogInfo(paddingField.GetValue(__instance));
+                //Log.Info(paddingField.GetValue(__instance));
                 // If you want to allow the original method to run:
                 return true;
             }
@@ -114,7 +131,7 @@ namespace StanPlugin
                 //__instance.depthRange = new Vector2(0f, 3000f);
                 //__instance.depthIncrements = 5000f;
                 //__instance.gridPositionZ = 20f;
-                //Plugin.PluginLogger.LogInfo("set gridposition z");
+                //Log.Info("set gridposition z");
 
 
 
@@ -127,7 +144,7 @@ namespace StanPlugin
                 //__instance.depthRange = new Vector2(0f, 3000f);
                 //__instance.depthIncrements = 5000f;
                 //__instance.gridPositionZ = 20f;
-                //Plugin.PluginLogger.LogInfo("set gridposition z");
+                //Log.Info("set gridposition z");
 
 
 
@@ -143,7 +160,7 @@ namespace StanPlugin
                 string callStack = stackTrace.ToString();
 
 
-                //Plugin.PluginLogger.LogInfo($"Original Position: {_originalPosition} gridSubDivisions {_gridSubdivisions}");
+                //Log.Info($"Original Position: {_originalPosition} gridSubDivisions {_gridSubdivisions}");
                 //UnityEngine.Debug.Log($"TargetMethod was called. Call stack:\n{callStack}");
 
 
@@ -159,7 +176,7 @@ namespace StanPlugin
             //public static bool Prefix(BuildingBlock __instance)
             //{
             //    __instance.zOffset = 75f;
-            //    Plugin.PluginLogger.LogInfo("patched block zOffset");
+            //    Log.Info("patched block zOffset");
             //    return true;
             //}
 
@@ -243,7 +260,67 @@ namespace StanPlugin
                 return false;
             }
         }
+
+        [HarmonyPatch(typeof(BuildingBlock), "CheckFlipping")]
+        public static class CheckFlippingPatcher
+        {
+            public static void Postfix(BuildingBlock __instance)
+            {
+                if (Plugin.isBlockPlacerFlippedY)
+                {
+                    FlipY(__instance);
+                }
+                else
+                {
+                    UnFlipY(__instance);
+                }
+            }
+
+            public static void FlipY(BuildingBlock __instance)
+            {
+                Vector3 flipParentLocalScale = __instance.flipParent.localScale;
+                __instance.flipParent.localScale = new Vector3(flipParentLocalScale.x, -1f, flipParentLocalScale.z);
+            }
+
+            public static void UnFlipY(BuildingBlock __instance)
+            {
+                Vector3 flipParentLocalScale = __instance.flipParent.localScale;
+                __instance.flipParent.localScale = new Vector3(flipParentLocalScale.x, 1f, flipParentLocalScale.z);
+            }
+
+
+        }
     }
+
+
+    class BuildingBlockPlacerPatcher
+    {
+
+
+
+        [HarmonyPatch(typeof(BuildingBlockPlacer), "ToggleForceFlip")]
+        public static class ToggleForceFlipPatch
+        {
+
+            [HarmonyPostfix]
+            public static void Postfix()
+            {
+                ++Plugin.yFlipCount;
+                // Toggle on 3rd click, then every 2
+                if (Plugin.yFlipCount == 3)
+                {
+                    Plugin.isBlockPlacerFlippedY = !Plugin.isBlockPlacerFlippedY;
+                    Log.Info("isBlockPlacerFlippedY?:" + Plugin.isBlockPlacerFlippedY);
+                    Plugin.yFlipCount = 1;
+                }
+
+
+            }
+        }
+
+
+    }
+
 
 
 
@@ -256,7 +333,7 @@ namespace StanPlugin
             [HarmonyPrefix]
             public static bool Prefix()
             {
-                Plugin.PluginLogger.LogInfo($"dialogue opening");
+                Log.Info($"dialogue opening");
                 return true;
             }
         }
@@ -272,7 +349,7 @@ namespace StanPlugin
             public static void Postfix()
             {
                 Main.CameraController.minMaxPosX = new Vector2(-2000f, 2000f);
-                Plugin.PluginLogger.LogInfo($"set expanded camera range");
+                Log.Info($"set expanded camera range");
 
             }
         }
@@ -297,11 +374,11 @@ namespace StanPlugin
     ////            // Always apply the depth change
     ////            __result = Main.GridManager.GridPositionZ + depthChange + zOffset;
 
-    ////            Plugin.PluginLogger.LogInfo($"Depth calculated: original={originalResult}, new={__result}, index={currentDepthIndex}, change={depthChange}");
+    ////            Log.Info($"Depth calculated: original={originalResult}, new={__result}, index={currentDepthIndex}, change={depthChange}");
     ////        }
     ////        catch (System.Exception e)
     ////        {
-    ////            Plugin.PluginLogger.LogError($"Error in GetZPositionPostfix: {e.Message}\n{e.StackTrace}");
+    ////            Log.Error($"Error in GetZPositionPostfix: {e.Message}\n{e.StackTrace}");
     ////        }
     ////    }
     ////}
@@ -316,7 +393,7 @@ namespace StanPlugin
     //    //    int currentDepth = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
     //    //    currentDepth++;
     //    //    Traverse.Create(__instance).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //    Plugin.PluginLogger.LogInfo($"Depth increased to {currentDepth}");
+    //    //    Log.Info($"Depth increased to {currentDepth}");
     //    //    return false; // Skip the original method
     //    //}
 
@@ -327,7 +404,7 @@ namespace StanPlugin
     //    //    int currentDepth = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
     //    //    currentDepth--;
     //    //    Traverse.Create(__instance).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //    Plugin.PluginLogger.LogInfo($"Depth decreased to {currentDepth}");
+    //    //    Log.Info($"Depth decreased to {currentDepth}");
     //    //    return false; // Skip the original method
     //    //}
 
@@ -340,11 +417,11 @@ namespace StanPlugin
     //    //        int currentDepthIndex = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
     //    //        float zPos = _previewBlock.GetZPosition(ref currentDepthIndex);
     //    //        __result.z = zPos;
-    //    //        Plugin.PluginLogger.LogInfo($"Preview position updated: z={zPos}, depth index={currentDepthIndex}");
+    //    //        Log.Info($"Preview position updated: z={zPos}, depth index={currentDepthIndex}");
     //    //    }
     //    //    catch (System.Exception e)
     //    //    {
-    //    //        Plugin.PluginLogger.LogError($"Error in PreviewPositionPostfix: {e.Message}\n{e.StackTrace}");
+    //    //        Log.Error($"Error in PreviewPositionPostfix: {e.Message}\n{e.StackTrace}");
     //    //    }
     //    //}
     //}
@@ -379,7 +456,7 @@ namespace StanPlugin
     //    //            int currentDepth = Traverse.Create(placer).Field("currentDepthIndex").GetValue<int>();
     //    //            currentDepth += change;
     //    //            Traverse.Create(placer).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //            Plugin.PluginLogger.LogInfo($"Depth changed to {currentDepth}");
+    //    //            Log.Info($"Depth changed to {currentDepth}");
 
     //    //            // Force update of preview block position
     //    //            Traverse.Create(placer).Method("SpawnNextBlockPreview", new object[] { true }).GetValue();
@@ -387,7 +464,7 @@ namespace StanPlugin
     //    //    }
     //    //    catch (System.Exception e)
     //    //    {
-    //    //        Plugin.PluginLogger.LogError($"Error in ModifyDepth: {e.Message}\n{e.StackTrace}");
+    //    //        Log.Error($"Error in ModifyDepth: {e.Message}\n{e.StackTrace}");
     //    //    }
     //    //}
     //}
@@ -403,14 +480,14 @@ namespace StanPlugin
     //        FieldInfo paddingField = AccessTools.Field(typeof(BuildingBlockGridGenerator), "padding");
     //        if (paddingField != null)
     //        {
-    //            Plugin.PluginLogger.LogInfo("setting padding");
+    //            Log.Info("setting padding");
 
     //           paddingField.SetValue(__instance, 5000f); // Set to your desired value
-    //            Plugin.PluginLogger.LogInfo(paddingField.GetValue(__instance));
+    //            Log.Info(paddingField.GetValue(__instance));
     //        }
     //        else
     //        {
-    //            Plugin.PluginLogger.LogError("Could not find padding field in BuildingBlockGridGenerator");
+    //            Log.Error("Could not find padding field in BuildingBlockGridGenerator");
     //        }
 
     //        return true;
