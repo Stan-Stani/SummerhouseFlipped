@@ -1,3 +1,4 @@
+Import-Module ./devUtils/setWindow.psm1
 
 function Get-EnvFromFile([string]$FilePath) {
     Write-Host $FilePath
@@ -42,11 +43,21 @@ $gamePath = (Join-Path $env:SUMMERHOUSE_EXECUTABLE_DIR_PATH '\SUMMERHOUSE.exe')
 # Launch the game asynchronously
 Start-Process -FilePath $gamePath -NoNewWindow -PassThru
 
+# Hacky way to separate the console window from the game window so they're
+# both visible
+Sleep -Seconds 1
+
+Set-Window -Id (Get-Process Summerhouse ).Id -PassThru -X -1403 -Y -835 -Width 1240 -Height 686
+
+Sleep -Seconds 5
+
+Set-Window -Id (Get-Process Summerhouse ).Id -PassThru -X 10 -Y 10 -Width 1240 -Height 686
+
+
 $host.ui.RawUI.WindowTitle = "Summerhouse Launch Manager"
+
 
 
 # Kill self even in Windows Terminals where profile is set to keep exited processes open
 
 Get-Process | Where-Object {$_.MainWindowTitle -like "Summerhouse Launch Manager"} | Stop-Process
-
-# exit
