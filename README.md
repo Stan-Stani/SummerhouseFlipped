@@ -1,5 +1,6 @@
 # SummerhouseFlipped — A [Summerhouse](https://store.steampowered.com/app/2533960/SUMMERHOUSE/) Mod
 
+[Steam Discussion Thread](https://steamcommunity.com/app/2533960/discussions/0/4520010433851923604/)
 
 ## Todo
 
@@ -9,7 +10,8 @@
 
 
 ## Implemented
-Increase minimum and maximum depth of block placement
+- Increase minimum and maximum depth of block placement
+- Flip objects vertically
 
 ## Ideas
 
