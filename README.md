@@ -12,6 +12,7 @@
 ## Implemented
 - Increase minimum and maximum depth of block placement
 - Flip objects vertically
+  - [ ] Still need to handle saving and loading 
 
 ## Ideas
 
