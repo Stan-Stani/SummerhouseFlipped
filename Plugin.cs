@@ -8,6 +8,11 @@ using System.Diagnostics;
 using static BuildingBlock;
 using System.Collections.Generic;
 using UnityEngine.TextCore.Text;
+using static UnityEngine.ScriptingUtility;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System;
+using JetBrains.Annotations;
 
 
 namespace SummerhouseFlipped
@@ -33,6 +38,9 @@ namespace SummerhouseFlipped
 
         internal static ManualLogSource PluginLogger;
 
+
+        SaveData SaveData;
+
         // Global state, cuz I'm dumb and lazy
         internal static bool isBlockPlacerFlippedY = false;
         internal static int yFlipCount = 0;
@@ -49,6 +57,131 @@ namespace SummerhouseFlipped
         private void OnDestroy()
         {
             harmony?.UnpatchSelf();
+        }
+    }
+
+    public static class SavedBuildingBlockPatcher
+    {
+
+        /// <summary>
+        /// Id, isFlippedY
+        /// </summary>
+        public static Dictionary<int, bool> PatchedSavedBlockState = new();
+        public static bool flippedY = false;
+
+        // Gotta dynamically look at transofform vector of block to determine if it's y flipped
+        // then save it to the dictionary and use tht for serialization on save
+        [HarmonyPatch(typeof(SavedBuildingBlock), MethodType.Constructor)]
+        public static void Postfix(BuildingBlock block, SavedBuildingBlock __instance)
+        {
+
+            PatchedSavedBlockState[block.saveID] = block.flipParent.localScale.y == -1f;
+
+        }
+    }
+
+    public static class SaveGameProcess
+    {
+
+        [Serializable]
+        public class SavedBuildingBlockExtended : SavedBuildingBlock
+        {
+
+            public bool flippedY = false;
+
+            public SavedBuildingBlockExtended(BuildingBlock block) : base(block)
+            {
+                flippedY = block.flipParent.localScale.y == -1f;
+            }
+
+
+        }
+
+        [Serializable]
+        public class SaveDataExtended : SaveData
+        {
+
+            public List<SavedBuildingBlockExtended> serializeMe = new List<SavedBuildingBlockExtended>();
+            public SaveDataExtended()
+            {
+                foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
+                {
+                    serializeMe.Add(new SavedBuildingBlockExtended(allPlacedBlock));
+                }
+                saveGameVersion = Main.SaveGameManager.SaveGameVersion;
+                mapName = "FROG";
+                cameraPos = Main.CameraController.transform.position;
+                if (Main.ColorManager != null)
+                {
+                    savedPalette = Main.ColorManager.activePalette;
+                }
+
+                Log.Info("lalonde" + JsonUtility.ToJson(serializeMe, true));
+                Log.Info("lalonde" + JsonUtility.ToJson(serializeMe[0], true));
+            }
+        }
+
+        [HarmonyPatch(typeof(SaveGameManager), "SaveGame")]
+        public static class SaveGameManagerPatcher
+        {
+
+            [Serializable]
+            public class Holder
+            {
+                
+            [SerializeReference]
+               public List<SavedBuildingBlockExtended> serializeMe;
+               public  List<SavedBuildingBlock> buildingBlocks;
+            }
+            public static bool Prefix(SaveGameManager __instance, int slotNumber, bool _isAutoSave = false)
+            {
+                Log.Info("lalonde " + "hello");
+
+
+
+
+                if (!_isAutoSave)
+                {
+                    Main.AudioManager.PlayGameSaved();
+                }
+                string saveFilePath = __instance.GetSaveFilePath(slotNumber);
+                string directoryName = Path.GetDirectoryName(saveFilePath);
+                if (!Directory.Exists(directoryName))
+                {
+                    Directory.CreateDirectory(directoryName);
+                }
+                var contentsToBe = new SaveDataExtended();
+                string contents = JsonUtility.ToJson(new SaveDataExtended(), true);
+                Log.Info("CONTENTS" + contents);
+
+
+
+                var holder = new Holder
+                {
+                    serializeMe = new SaveDataExtended().serializeMe,
+                    buildingBlocks = new SaveDataExtended().buildingBlocks
+
+                };
+
+                Log.Info("Bish");
+                Log.Info(JsonUtility.ToJson(holder, true));
+                Log.Info("holder.serializeMe[0] " + JsonUtility.ToJson(holder.serializeMe[0], true));
+                Log.Info(holder.serializeMe.GetType().ToString());
+                Log.Info(holder.buildingBlocks.GetType().ToString());
+                File.WriteAllText(saveFilePath, contents);
+                Log.Info("lalonde " + contents);
+                if (__instance.debugPrints)
+                {
+                    UnityEngine.Debug.Log("Game Saved to slot " + slotNumber);
+                }
+                __instance.OnGameSave.Invoke();
+                if (!_isAutoSave)
+                {
+                    Main.UIPopUpManager.PopUp(__instance.gameSavedPopup);
+                }
+
+                return false;
+            }
         }
     }
 
@@ -355,145 +488,7 @@ namespace SummerhouseFlipped
         }
     }
 
-    ////[HarmonyPatch(typeof(BuildingBlock))]
-    ////public class BuildingBlockPatcher
-    ////{
-    ////    [HarmonyPatch("GetZPosition")]
-    ////    [HarmonyPostfix]
-    ////    public static void GetZPositionPostfix(BuildingBlock __instance, ref int currentDepthIndex, ref float __result)
-    ////    {
-    ////        try
-    ////        {
-    ////            float originalResult = __result;
-    ////            float zOffset = Traverse.Create(__instance).Field("zOffset").GetValue<float>();
-
-    ////            // Apply depth change
-    ////            float depthStep = 0.4f;
-    ////            float depthChange = currentDepthIndex * depthStep;
-
-    ////            // Always apply the depth change
-    ////            __result = Main.GridManager.GridPositionZ + depthChange + zOffset;
-
-    ////            Log.Info($"Depth calculated: original={originalResult}, new={__result}, index={currentDepthIndex}, change={depthChange}");
-    ////        }
-    ////        catch (System.Exception e)
-    ////        {
-    ////            Log.Error($"Error in GetZPositionPostfix: {e.Message}\n{e.StackTrace}");
-    ////        }
-    ////    }
-    ////}
-
-    //[HarmonyPatch(typeof(BuildingBlockPlacer))]
-    //public class BuildingBlockPlacerPatcher
-    //{
-    //    //[HarmonyPatch("OnManualDepthSelectPositiveDown")]
-    //    //[HarmonyPrefix]
-    //    //public static bool OnManualDepthSelectPositiveDownPrefix(BuildingBlockPlacer __instance)
-    //    //{
-    //    //    int currentDepth = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
-    //    //    currentDepth++;
-    //    //    Traverse.Create(__instance).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //    Log.Info($"Depth increased to {currentDepth}");
-    //    //    return false; // Skip the original method
-    //    //}
-
-    //    //[HarmonyPatch("OnManualDepthSelectNegativeDown")]
-    //    //[HarmonyPrefix]
-    //    //public static bool OnManualDepthSelectNegativeDownPrefix(BuildingBlockPlacer __instance)
-    //    //{
-    //    //    int currentDepth = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
-    //    //    currentDepth--;
-    //    //    Traverse.Create(__instance).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //    Log.Info($"Depth decreased to {currentDepth}");
-    //    //    return false; // Skip the original method
-    //    //}
-
-    //    //[HarmonyPatch("PreviewPosition")]
-    //    //[HarmonyPostfix]
-    //    //public static void PreviewPositionPostfix(BuildingBlockPlacer __instance, BuildingBlock _previewBlock, ref Vector3 __result)
-    //    //{
-    //    //    try
-    //    //    {
-    //    //        int currentDepthIndex = Traverse.Create(__instance).Field("currentDepthIndex").GetValue<int>();
-    //    //        float zPos = _previewBlock.GetZPosition(ref currentDepthIndex);
-    //    //        __result.z = zPos;
-    //    //        Log.Info($"Preview position updated: z={zPos}, depth index={currentDepthIndex}");
-    //    //    }
-    //    //    catch (System.Exception e)
-    //    //    {
-    //    //        Log.Error($"Error in PreviewPositionPostfix: {e.Message}\n{e.StackTrace}");
-    //    //    }
-    //    //}
-    //}
-
-
-    //[HarmonyPatch(typeof(InputManager))]
-    //public class InputManagerPatcher
-    //{
-    //    //[HarmonyPatch("OnManualDepthSelectPositiveDown")]
-    //    //[HarmonyPrefix]
-    //    //public static bool OnManualDepthSelectPositiveDownPrefix()
-    //    //{
-    //    //    ModifyDepth(1);
-    //    //    return false; // Skip the original method
-    //    //}
-
-    //    //[HarmonyPatch("OnManualDepthSelectNegativeDown")]
-    //    //[HarmonyPrefix]
-    //    //public static bool OnManualDepthSelectNegativeDownPrefix()
-    //    //{
-    //    //    ModifyDepth(-1);
-    //    //    return false; // Skip the original method
-    //    //}
-
-    //    //private static void ModifyDepth(int change)
-    //    //{
-    //    //    try
-    //    //    {
-    //    //        BuildingBlockPlacer placer = UnityEngine.Object.FindObjectOfType<BuildingBlockPlacer>();
-    //    //        if (placer != null)
-    //    //        {
-    //    //            int currentDepth = Traverse.Create(placer).Field("currentDepthIndex").GetValue<int>();
-    //    //            currentDepth += change;
-    //    //            Traverse.Create(placer).Field("currentDepthIndex").SetValue(currentDepth);
-    //    //            Log.Info($"Depth changed to {currentDepth}");
-
-    //    //            // Force update of preview block position
-    //    //            Traverse.Create(placer).Method("SpawnNextBlockPreview", new object[] { true }).GetValue();
-    //    //        }
-    //    //    }
-    //    //    catch (System.Exception e)
-    //    //    {
-    //    //        Log.Error($"Error in ModifyDepth: {e.Message}\n{e.StackTrace}");
-    //    //    }
-    //    //}
-    //}
-
-    //[HarmonyPatch]
-    //public class BuildingBlockGridGeneratorPatch
-    //{
-    //    [HarmonyPatch(typeof(BuildingBlockGridGenerator))]
-    //    [HarmonyPatch(MethodType.Constructor)]
-    //    public static bool Prefix(BuildingBlockGridGenerator __instance)
-    //    {
-    //        // Use reflection to set the padding field
-    //        FieldInfo paddingField = AccessTools.Field(typeof(BuildingBlockGridGenerator), "padding");
-    //        if (paddingField != null)
-    //        {
-    //            Log.Info("setting padding");
-
-    //           paddingField.SetValue(__instance, 5000f); // Set to your desired value
-    //            Log.Info(paddingField.GetValue(__instance));
-    //        }
-    //        else
-    //        {
-    //            Log.Error("Could not find padding field in BuildingBlockGridGenerator");
-    //        }
-
-    //        return true;
-    //    }
-    //}
-
 
 }
+
 
