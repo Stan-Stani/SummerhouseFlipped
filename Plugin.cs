@@ -18,6 +18,7 @@ using Newtonsoft.Json.Serialization;
 using System.Collections;
 using static UnityEngine.UIElements.UIR.BestFitAllocator;
 using static BuildingBlockPicker;
+using UnityEngine.Rendering.VirtualTexturing;
 
 
 namespace SummerhouseFlipped
@@ -35,9 +36,69 @@ namespace SummerhouseFlipped
         public static void Debug(string message) => Logger.LogDebug(message);
     }
 
+    public static class JSONSTUFF
+    {
+        // Thanks Claude Sonnet 3.5!
+        public class SpecificPropertiesContractResolver : DefaultContractResolver
+        {
+            private readonly Dictionary<Type, HashSet<string>> _includeProperties;
+
+            public SpecificPropertiesContractResolver()
+            {
+                _includeProperties = new Dictionary<Type, HashSet<string>>();
+            }
+
+            public void IncludeProperties(Type type, params string[] propertyNames)
+            {
+                if (!_includeProperties.ContainsKey(type))
+                    _includeProperties[type] = new HashSet<string>();
+
+                foreach (var name in propertyNames)
+                    _includeProperties[type].Add(name);
+            }
+
+            protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
+            {
+                var allProperties = base.CreateProperties(type, memberSerialization);
+
+                if (_includeProperties.TryGetValue(type, out HashSet<string> includeProperties))
+                {
+                    return allProperties.Where(p => includeProperties.Contains(p.PropertyName)).ToList();
+                }
+
+                return allProperties;
+            }
+
+
+
+        }
+
+        public static Func<object, string> GetDefault()
+        {
+            var resolver = new SpecificPropertiesContractResolver();
+            resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
+            JsonSerializerSettings settings = new JsonSerializerSettings
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                ContractResolver = resolver
+            };
+
+            return obj => JsonConvert.SerializeObject(obj, settings);
+        }
+
+
+
+        static JsonSerializerSettings settings = new JsonSerializerSettings
+        {
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+            ContractResolver = new SpecificPropertiesContractResolver(),
+        };
+    }
+
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
     {
+
 
         private Harmony harmony;
 
@@ -129,42 +190,12 @@ namespace SummerhouseFlipped
         public static class SaveGameManagerPatcher
         {
 
-            // Thanks Claude Sonnet 3.5!
-            public class SpecificPropertiesContractResolver : DefaultContractResolver
-            {
-                private readonly Dictionary<Type, HashSet<string>> _includeProperties;
 
-                public SpecificPropertiesContractResolver()
-                {
-                    _includeProperties = new Dictionary<Type, HashSet<string>>();
-                }
-
-                public void IncludeProperties(Type type, params string[] propertyNames)
-                {
-                    if (!_includeProperties.ContainsKey(type))
-                        _includeProperties[type] = new HashSet<string>();
-
-                    foreach (var name in propertyNames)
-                        _includeProperties[type].Add(name);
-                }
-
-                protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
-                {
-                    var allProperties = base.CreateProperties(type, memberSerialization);
-
-                    if (_includeProperties.TryGetValue(type, out HashSet<string> includeProperties))
-                    {
-                        return allProperties.Where(p => includeProperties.Contains(p.PropertyName)).ToList();
-                    }
-
-                    return allProperties;
-                }
-            }
 
             [HarmonyPatch("SaveGame")]
             public static bool Prefix(SaveGameManager __instance, int slotNumber, bool _isAutoSave = false)
             {
-                Log.Info("lalonde " + "hello");
+
 
 
 
@@ -188,17 +219,9 @@ namespace SummerhouseFlipped
 
                 Log.Info("Bish");
 
-                var resolver = new SpecificPropertiesContractResolver();
-                resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
+                var defaultToJSON = JSONSTUFF.GetDefault();
 
-
-                JsonSerializerSettings settings = new JsonSerializerSettings
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                    ContractResolver = resolver
-                };
-
-                string contents = JsonConvert.SerializeObject(new SaveDataExtended(), settings);
+                string contents= defaultToJSON(new SaveDataExtended());
                 Log.Info("CONTENTS" + contents);
 
                 File.WriteAllText(saveFilePath, contents);
@@ -500,10 +523,10 @@ namespace SummerhouseFlipped
         {
             public static void Postfix(BuildingBlock __instance)
             {
-           
+
                 if (Plugin.isBlockPlacerFlippedY)
                 {
-                  
+
                     FlipY(__instance);
                 }
                 else
@@ -514,12 +537,14 @@ namespace SummerhouseFlipped
 
             public static void FlipY(BuildingBlock __instance)
             {
+
                 Vector3 flipParentLocalScale = __instance.flipParent.localScale;
                 __instance.flipParent.localScale = new Vector3(flipParentLocalScale.x, -1f, flipParentLocalScale.z);
             }
 
             public static void UnFlipY(BuildingBlock __instance)
             {
+
                 Vector3 flipParentLocalScale = __instance.flipParent.localScale;
                 __instance.flipParent.localScale = new Vector3(flipParentLocalScale.x, 1f, flipParentLocalScale.z);
             }
@@ -528,7 +553,7 @@ namespace SummerhouseFlipped
         }
     }
 
- 
+
 
 
 
@@ -580,10 +605,14 @@ namespace SummerhouseFlipped
         [HarmonyPatch("RecreateSavedBlock")]
         public static bool Prefix(SaveGameProcess.SavedBuildingBlockExtended _block, BuildingBlockPlacer __instance)
         {
+            var defaultToJSON = JSONSTUFF.GetDefault();
             BuildingBlock blockByID = Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(_block.blockID);
             if (blockByID != null)
             {
                 BuildingBlock buildingBlock = UnityEngine.Object.Instantiate(blockByID);
+
+                Log.Info(_block.flippedY.ToString());
+                Log.Info($"Before recreating saved block is: {defaultToJSON(_block)}");
 
                 buildingBlock.transform.parent = __instance.transform;
                 buildingBlock.transform.position = _block.position;
@@ -595,7 +624,11 @@ namespace SummerhouseFlipped
                 if (_block.flippedY)
                 {
                     BuildingBlockPatcher.CheckFlippingPatcher.FlipY(buildingBlock);
+
                 }
+
+                // TODO: figure out why flipping alternates sometimes when loading same file over and over.....
+                Log.Info($"Recreated saved block: {buildingBlock.flipParent.localScale}");
 
             }
             return false;
