@@ -34,6 +34,9 @@
 		<Reference Include="Assembly-CSharp-firstpass">
 		  <HintPath>lib\Assembly-CSharp-firstpass.dll</HintPath>
 		</Reference>
+		<Reference Include="Newtonsoft.Json">
+		  <HintPath>lib\Newtonsoft.Json.dll</HintPath>
+		</Reference>
 		<Reference Include="Unity.RenderPipelines.Universal.Runtime">
 			<HintPath>lib\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
 		</Reference>
