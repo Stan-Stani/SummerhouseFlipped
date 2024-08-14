@@ -12,7 +12,7 @@
 ## Implemented
 - Increase minimum and maximum depth of block placement
 - Flip objects vertically
-    - [x] Save and load vertically flipped blocks!
+    - [X] Save and load vertically flipped blocks!
     - [ ] Bug: Sometimes doesn't load blocks vertically flipped
 
 ## Ideas
