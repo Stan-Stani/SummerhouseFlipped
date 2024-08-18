@@ -12,10 +12,12 @@
 ## Implemented
 - Increase minimum and maximum depth of block placement
 - Flip objects vertically
-    - Save and load vertically flipped blocks!
+    - [X] Save and load vertically flipped blocks!
+    - [ ] Bug: Sometimes doesn't load blocks vertically flipped
 
 ## Ideas
 
+- More inhabitant sprites. Especially cats and other animals!!~!
 - Auto weather & day night cycle.
 - Lights on when it rains
 - greater freedom of depth placement
