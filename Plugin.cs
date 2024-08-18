@@ -73,17 +73,55 @@ namespace SummerhouseFlipped
 
         }
 
-        public static Func<object, string> GetDefault()
+        public static string Serialize(object obj)
         {
             var resolver = new SpecificPropertiesContractResolver();
             resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
             JsonSerializerSettings settings = new JsonSerializerSettings
             {
                 ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                ContractResolver = resolver
+                ContractResolver = resolver,
+                Error = (sender, args) =>
+                {
+                    Log.Error($"SERIALIZATION ERROR: {args.ErrorContext.Error.Message}");
+             
+                    Log.Error($"SERIALIZATION ERROR CONTINUED: Current Object: {args.CurrentObject}");
+                    Log.Error($"SERIALIZATION ERROR CONTINUED: Member: {args.ErrorContext.Member}");
+                    Log.Error($"SERIALIZATION ERROR CONTINUED: Original Object: {args.ErrorContext.OriginalObject}");
+                    Log.Error($"SERIALIZATION ERROR CONTINUED: Path: ${args.ErrorContext.Path}");
+                    //Log.Error($"SERIALIZATION ERROR CONTINUED: Stack: {args.ErrorContext.Error.StackTrace}");
+
+                    //args.ErrorContext.Handled = true;
+
+                }
             };
 
-            return obj => JsonConvert.SerializeObject(obj, settings);
+            return JsonConvert.SerializeObject(obj, settings);
+        }
+
+        public static T Deserialize<T>(string str)
+        {
+            var resolver = new SpecificPropertiesContractResolver();
+            resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
+            JsonSerializerSettings settings = new JsonSerializerSettings
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                ContractResolver = resolver,
+                Error = (sender, args) =>
+                {
+                    Log.Error($"DE-SERIALIZATION ERROR: {args.ErrorContext.Error.Message}");
+                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Current Object: {args.CurrentObject}");
+                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Member: {args.ErrorContext.Member}");
+                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Original Object: {args.ErrorContext.OriginalObject}");
+                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Path: ${args.ErrorContext.Path}");
+                    //Log.Error($"De-SERIALIZATION ERROR CONTINUED: Stack: {args.ErrorContext.Error.StackTrace}");
+
+                    //args.ErrorContext.Handled = true;
+
+                }
+            };
+
+            return JsonConvert.DeserializeObject<T>(str, settings);
         }
 
 
@@ -150,15 +188,44 @@ namespace SummerhouseFlipped
     {
 
         [Serializable]
-        public class SavedBuildingBlockExtended : SavedBuildingBlock
+        public class SavedBuildingBlockExtended
         {
 
-            public bool flippedY = false;
+            public bool FlippedY = false;
 
-            public SavedBuildingBlockExtended(BuildingBlock block) : base(block)
+
+            public Vector3 position;
+
+            public bool flipped;
+
+            public int blockID;
+
+            // Parameterless constructor for deserialization
+            public SavedBuildingBlockExtended()
             {
-                flippedY = block.flipParent.localScale.y == -1f;
             }
+
+            public SavedBuildingBlockExtended(BuildingBlock block)
+            {
+
+
+           
+                position = block.transform.position;
+                flipped = block.Flipped;
+                blockID = block.saveID;
+        
+                try
+                {
+                    Log.Info("HEELO STAN");
+                    FlippedY = block.flipParent.localScale.y == -1f;
+                }
+                catch (Exception exception)
+                {
+                    Log.Error(exception.Message);
+                }
+            }
+
+
 
 
         }
@@ -171,18 +238,38 @@ namespace SummerhouseFlipped
             public new List<SavedBuildingBlockExtended> buildingBlocks = new List<SavedBuildingBlockExtended>();
             public SaveDataExtended()
             {
-                foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
+                Log.Info("STAN STAn");
+                try
                 {
-                    buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
-                }
-                saveGameVersion = Main.SaveGameManager.SaveGameVersion;
-                mapName = Main.SceneLoadManager.CurrentSceneName;
-                cameraPos = Main.CameraController.transform.position;
-                if (Main.ColorManager != null)
-                {
-                    savedPalette = Main.ColorManager.activePalette;
-                }
+                    //var defaultToJSON = JSONSTUFF.GetDefault();
+                    Log.Info("saveDataExtended constructor before foreach");
+                    Log.Info(Main.BuildingBlockPlacer.AllPlacedBlocks.GetType().ToString());
+                    Log.Info((Main.BuildingBlockPlacer.AllPlacedBlocks is null).ToString());
+                    foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
+                    {
+                        Log.Info("adding to list");
+                        //Log.Info($"AllPlacedBlock: ${defaultToJSON(allPlacedBlock)}");
+                        buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
+                    }
 
+                    Log.Info("saveDataExtended constructor before version");
+                    saveGameVersion = Main.SaveGameManager.SaveGameVersion;
+                    Log.Info("saveDataExtended constructor before currentscenename");
+                    mapName = Main.SceneLoadManager.CurrentSceneName;
+                    Log.Info("saveDataExtended constructor before position");
+                    cameraPos = Main.CameraController.transform.position;
+                    if (Main.ColorManager != null)
+                    {
+                        savedPalette = Main.ColorManager.activePalette;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Log.Info("saveDataExtended constructor exception");
+                    Log.Error(exception.Message);
+                    Log.Info("saveDataExtended constructor exception");
+                }
+                Log.Info("saveDataExtended constructor DONE");
             }
         }
 
@@ -219,28 +306,39 @@ namespace SummerhouseFlipped
 
                 Log.Info("Bish");
 
-                var defaultToJSON = JSONSTUFF.GetDefault();
 
-                string contents= defaultToJSON(new SaveDataExtended());
-                Log.Info("CONTENTS" + contents);
+                string contents = "";
+                try
+                {
+                    //var defaultToJSON = JSONSTUFF.GetDefault();
+                    contents = JSONSTUFF.Serialize(new SaveDataExtended());
+                    Log.Info("CONTENTS" + contents);
 
-                File.WriteAllText(saveFilePath, contents);
-                Log.Info("lalonde " + contents);
-                if (__instance.debugPrints)
-                {
-                    UnityEngine.Debug.Log("Game Saved to slot " + slotNumber);
+                    File.WriteAllText(saveFilePath, contents);
+                    Log.Info("lalonde " + contents);
+                    if (__instance.debugPrints)
+                    {
+                        UnityEngine.Debug.Log("Game Saved to slot " + slotNumber);
+                    }
+                    __instance.OnGameSave.Invoke();
+                    if (!_isAutoSave)
+                    {
+                        Main.UIPopUpManager.PopUp(__instance.gameSavedPopup);
+                    }
+
                 }
-                __instance.OnGameSave.Invoke();
-                if (!_isAutoSave)
+                catch (Exception e)
                 {
-                    Main.UIPopUpManager.PopUp(__instance.gameSavedPopup);
+                    Log.Error(e.Message);
+                    File.WriteAllText(saveFilePath + "helloError", e.Message);
                 }
+
 
                 return false;
             }
 
             [HarmonyPatch("LoadGame")]
-            public static bool LoadGame(SaveGameManager __instance, int slotNumber)
+            public static bool Prefix(SaveGameManager __instance, int slotNumber)
             {
                 Main.AudioManager.PlayGameLoaded();
                 string saveFilePath = __instance.GetSaveFilePath(slotNumber);
@@ -248,8 +346,9 @@ namespace SummerhouseFlipped
                 {
                     return false;
                 }
-
+                //var defaultToJSON = JSONSTUFF.GetDefault();
                 SaveDataExtended saveData = ReadSaveDataFromDiskExtended(saveFilePath);
+                //Log.Info($"Save data just after deserialization: {defaultToJSON(saveData)}");
                 if (saveData != null)
                 {
                     if (saveData.saveGameVersion != __instance.saveGameVersion)
@@ -275,7 +374,18 @@ namespace SummerhouseFlipped
             {
                 if (File.Exists(_saveFilePath))
                 {
-                    return JsonConvert.DeserializeObject<SaveDataExtended>(File.ReadAllText(_saveFilePath));
+                    string fileJSON = (File.ReadAllText(_saveFilePath));
+                    try
+                    {
+                        return JSONSTUFF.Deserialize<SaveDataExtended>(fileJSON);
+                    }
+                    catch (Exception exception)
+                    {
+
+                        Log.Error(exception.Message);
+                        Log.Error(exception.StackTrace);
+                        Log.Error($"fileJson: {fileJSON}");
+                    }
                 }
 
                 UnityEngine.Debug.LogError("No save file found!");
@@ -283,7 +393,7 @@ namespace SummerhouseFlipped
             }
 
 
-            public static IEnumerator ApplySaveDataExtended(SaveData _saveData, SaveGameManager saveGameManagerInstance)
+            public static IEnumerator ApplySaveDataExtended(SaveDataExtended _saveData, SaveGameManager saveGameManagerInstance)
             {
                 Main.SceneLoadManager.LoadScene(_saveData.mapName);
                 while (Main.SceneLoadManager.IsLoadingScene)
@@ -299,6 +409,7 @@ namespace SummerhouseFlipped
 
                 foreach (SavedBuildingBlockExtended buildingBlock in _saveData.buildingBlocks)
                 {
+                    //TODO: Probably will just need to reimplement this taking an extended building block
                     Main.BuildingBlockPlacer.RecreateSavedBlock(buildingBlock);
                     yield return null; // Yield after each block to prevent freezing
                 }
@@ -315,6 +426,27 @@ namespace SummerhouseFlipped
 
 
 
+    }
+
+    class UndoManagerPatcher
+    {
+        [HarmonyPatch(typeof(UndoManager), "RegisterUndoStep")]
+        public static bool Prefix(UndoManager __instance)
+        {
+
+            {
+                if (__instance.currentIndex < __instance.undoHistory.Count - 1)
+                {
+                    __instance.undoHistory.RemoveRange(__instance.currentIndex + 1, __instance.undoHistory.Count - __instance.currentIndex - 1);
+                }
+
+                Log.Info("running undo clearer");
+                __instance.undoHistory.Add(new SaveGameProcess.SaveDataExtended());
+                __instance.currentIndex = __instance.undoHistory.Count - 1;
+            }
+
+            return false;
+        }
     }
 
     // Separate class for BuildingBlockPicker patches
@@ -346,7 +478,7 @@ namespace SummerhouseFlipped
 
 
 
-        //        Main.CameraController.minMaxPosX = new Vector2(-2000f, 2000f);
+        //        Main.CameraController.minMaxPosX = new Vector2(-2000f, 2000f); 
 
 
 
@@ -605,14 +737,13 @@ namespace SummerhouseFlipped
         [HarmonyPatch("RecreateSavedBlock")]
         public static bool Prefix(SaveGameProcess.SavedBuildingBlockExtended _block, BuildingBlockPlacer __instance)
         {
-            var defaultToJSON = JSONSTUFF.GetDefault();
+         
             BuildingBlock blockByID = Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(_block.blockID);
             if (blockByID != null)
             {
                 BuildingBlock buildingBlock = UnityEngine.Object.Instantiate(blockByID);
-
-                Log.Info(_block.flippedY.ToString());
-                Log.Info($"Before recreating saved block is: {defaultToJSON(_block)}");
+                //Log.Info($"_block.flippedY: {_block.flippedY.ToString()}");
+                //Log.Info($"Before recreating saved block is: {defaultToJSON(_block)}");
 
                 buildingBlock.transform.parent = __instance.transform;
                 buildingBlock.transform.position = _block.position;
@@ -621,7 +752,7 @@ namespace SummerhouseFlipped
                 {
                     buildingBlock.Flip();
                 }
-                if (_block.flippedY)
+                if (_block.FlippedY)
                 {
                     BuildingBlockPatcher.CheckFlippingPatcher.FlipY(buildingBlock);
 
