@@ -84,7 +84,7 @@ namespace SummerhouseFlipped
                 Error = (sender, args) =>
                 {
                     Log.Error($"SERIALIZATION ERROR: {args.ErrorContext.Error.Message}");
-             
+
                     Log.Error($"SERIALIZATION ERROR CONTINUED: Current Object: {args.CurrentObject}");
                     Log.Error($"SERIALIZATION ERROR CONTINUED: Member: {args.ErrorContext.Member}");
                     Log.Error($"SERIALIZATION ERROR CONTINUED: Original Object: {args.ErrorContext.OriginalObject}");
@@ -178,7 +178,7 @@ namespace SummerhouseFlipped
         [HarmonyPatch(typeof(SavedBuildingBlock), MethodType.Constructor)]
         public static void Postfix(BuildingBlock block, SavedBuildingBlock __instance)
         {
-
+            Log.Info($"{block.flipParent.localScale.y == -1f} yo");
             PatchedSavedBlockState[block.saveID] = block.flipParent.localScale.y == -1f;
 
         }
@@ -209,15 +209,22 @@ namespace SummerhouseFlipped
             {
 
 
-           
+
                 position = block.transform.position;
                 flipped = block.Flipped;
                 blockID = block.saveID;
-        
+
                 try
                 {
+                    // TODO: see line 534 in BuildingBlock
+                    //    BuildingBlock buildingBlock = Object.Instantiate(_block, position, Quaternion.identity);
+                    // Somehow the flip info in localScale of flipparent is cleared I think and the block's "flipped" field is used to keep track
                     Log.Info("HEELO STAN");
+                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.parent.localScale)}");
+                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.localScale)}");
                     FlippedY = block.flipParent.localScale.y == -1f;
+                    Log.Info(block.flipParent.localScale.ToString());
+                    Log.Info(block.transform.localScale.ToString());
                 }
                 catch (Exception exception)
                 {
@@ -248,7 +255,7 @@ namespace SummerhouseFlipped
                     foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
                     {
                         Log.Info("adding to list");
-                        //Log.Info($"AllPlacedBlock: ${defaultToJSON(allPlacedBlock)}");
+                        Log.Info($"AllPlacedBlock: ${JSONSTUFF.Serialize(allPlacedBlock.flipParent.localScale)}");
                         buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
                     }
 
@@ -277,12 +284,12 @@ namespace SummerhouseFlipped
         public static class SaveGameManagerPatcher
         {
 
-
+            public static SavedBuildingBlockExtended CurrentlyRecreatingSavedBuildingBlockExtended = null;
 
             [HarmonyPatch("SaveGame")]
             public static bool Prefix(SaveGameManager __instance, int slotNumber, bool _isAutoSave = false)
             {
-
+                Log.Info("SAVE GAME PATCHING IS WORKING");
 
 
 
@@ -356,6 +363,7 @@ namespace SummerhouseFlipped
                         return false;
                     }
 
+                    Log.Info("LOL SCREW YOU STAN");
                     Main.UIManager.FadeToBlackAndExecute(delegate
                     {
                         __instance.StartCoroutine(ApplySaveDataExtended(saveData, __instance));
@@ -407,10 +415,19 @@ namespace SummerhouseFlipped
                 Main.UndoManager.RegisterUndoStep();
                 Main.BuildingBlockPlacer.ClearAllBlocks();
 
-                foreach (SavedBuildingBlockExtended buildingBlock in _saveData.buildingBlocks)
+                var dummyBuildingBlock = UnityEngine.Object.Instantiate(Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(1));
+                Log.Info($"{dummyBuildingBlock is null}");
+
+                var initializedDummyBuildingBlock = dummyBuildingBlock;
+
+                SavedBuildingBlock dummySavedBuildingBlock = new(initializedDummyBuildingBlock);
+
+                foreach (SavedBuildingBlockExtended savedBuildingBlockExtended in _saveData.buildingBlocks)
                 {
                     //TODO: Probably will just need to reimplement this taking an extended building block
-                    Main.BuildingBlockPlacer.RecreateSavedBlock(buildingBlock);
+                    Log.Info("STAN WE TRYING TO RECREATESAVEDBLOCKLOL");
+                    CurrentlyRecreatingSavedBuildingBlockExtended = savedBuildingBlockExtended;
+                    Main.BuildingBlockPlacer.RecreateSavedBlock(dummySavedBuildingBlock);
                     yield return null; // Yield after each block to prevent freezing
                 }
 
@@ -504,6 +521,7 @@ namespace SummerhouseFlipped
             public static void Postfix()
             {
                 //Main.GridVisualizer.showGrid = true;
+                Log.Info("HELLO AWAKE STAN ");
             }
         }
     }
@@ -735,24 +753,26 @@ namespace SummerhouseFlipped
 
 
         [HarmonyPatch("RecreateSavedBlock")]
-        public static bool Prefix(SaveGameProcess.SavedBuildingBlockExtended _block, BuildingBlockPlacer __instance)
+        public static bool Prefix(SavedBuildingBlock _block, BuildingBlockPlacer __instance)
         {
-         
-            BuildingBlock blockByID = Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(_block.blockID);
+            var _dummyBlock = _block;
+            Log.Info($"NUMBER 5 IS ALIVE!");
+            SaveGameProcess.SavedBuildingBlockExtended savedBlockExtended = SaveGameProcess.SaveGameManagerPatcher.CurrentlyRecreatingSavedBuildingBlockExtended;
+            BuildingBlock blockByID = Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(savedBlockExtended.blockID);
             if (blockByID != null)
             {
                 BuildingBlock buildingBlock = UnityEngine.Object.Instantiate(blockByID);
-                //Log.Info($"_block.flippedY: {_block.flippedY.ToString()}");
-                //Log.Info($"Before recreating saved block is: {defaultToJSON(_block)}");
+                Log.Info($"_block.flippedY: {savedBlockExtended.FlippedY.ToString()}");
+                Log.Info($"Before recreating saved block is: {JSONSTUFF.Serialize(savedBlockExtended)}");
 
                 buildingBlock.transform.parent = __instance.transform;
-                buildingBlock.transform.position = _block.position;
+                buildingBlock.transform.position = savedBlockExtended.position;
                 __instance.allPlacedBlocks.Add(buildingBlock);
-                if (_block.flipped)
+                if (savedBlockExtended.flipped)
                 {
                     buildingBlock.Flip();
                 }
-                if (_block.FlippedY)
+                if (savedBlockExtended.FlippedY)
                 {
                     BuildingBlockPatcher.CheckFlippingPatcher.FlipY(buildingBlock);
 
