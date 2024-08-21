@@ -46,4 +46,7 @@
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
 		<Exec Command="pwsh -NoProfile -Command start-process pwsh '-NoProfile -File &quot;.\postbuild.ps1&quot;'" />
 	</Target>
+	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+		<DebugType>Full</DebugType>
+	</PropertyGroup>
 </Project>

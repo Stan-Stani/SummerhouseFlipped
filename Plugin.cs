@@ -19,6 +19,7 @@ using System.Collections;
 using static UnityEngine.UIElements.UIR.BestFitAllocator;
 using static BuildingBlockPicker;
 using UnityEngine.Rendering.VirtualTexturing;
+using UnityEngine.UIElements;
 
 
 namespace SummerhouseFlipped
@@ -220,8 +221,12 @@ namespace SummerhouseFlipped
                     //    BuildingBlock buildingBlock = Object.Instantiate(_block, position, Quaternion.identity);
                     // Somehow the flip info in localScale of flipparent is cleared I think and the block's "flipped" field is used to keep track
                     Log.Info("HEELO STAN");
-                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.parent.localScale)}");
-                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.localScale)}");
+                    Log.Info($"Flipped?: ${block.Flipped}");
+                    Log.Info($"localSCALE vbasetransformpositiont: HEY {JSONSTUFF.Serialize(block.transform.position)}");
+                    Log.Info($"localSCALE BASE LOCALSCALEt: HEY {JSONSTUFF.Serialize(block.transform.localScale)}");
+                    Log.Info($"localSCALE FLIPPAREnt: HEY {JSONSTUFF.Serialize(block.flipParent.localScale)}");
+                    Log.Info($"localSCALE:XXX HEY {JSONSTUFF.Serialize(block.transform.localScale.y)}");
+                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.rotation)}");
                     FlippedY = block.flipParent.localScale.y == -1f;
                     Log.Info(block.flipParent.localScale.ToString());
                     Log.Info(block.transform.localScale.ToString());
@@ -236,6 +241,8 @@ namespace SummerhouseFlipped
 
 
         }
+
+
 
 
         [Serializable]
@@ -256,6 +263,8 @@ namespace SummerhouseFlipped
                     {
                         Log.Info("adding to list");
                         Log.Info($"AllPlacedBlock: ${JSONSTUFF.Serialize(allPlacedBlock.flipParent.localScale)}");
+                        Log.Info($"AllPlacedBlock: ${JSONSTUFF.Serialize(allPlacedBlock.transform.localScale)}");
+                        Log.Info($"----------------------------------------");
                         buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
                     }
 
@@ -730,8 +739,20 @@ namespace SummerhouseFlipped
         //    return false; // Skip original method
         //}
 
+        [HarmonyPatch("PlaceBlock")]
+        public static bool Prefix(BuildingBlock _block, Vector2 _gridPosition, BuildingBlockPlacer __instance)
+        {
+            Log.Info($"baseParent of buildingBLockPlacer: ${__instance.transform.localScale}");
+        
 
+            Vector3 position = new Vector3(_gridPosition.x, _gridPosition.y, Main.GridManager.GridPositionZ);
 
+            BuildingBlock buildingBlockTESTCOPY = UnityEngine.Object.Instantiate(_block, position, Quaternion.identity);
+            Log.Info($"{JSONSTUFF.Serialize(buildingBlockTESTCOPY)}");
+
+            Log.Info($"placedBlock ${buildingBlockTESTCOPY.GetPivotPosition}");
+            return true;
+        }
 
 
         [HarmonyPatch("ToggleForceFlip")]
