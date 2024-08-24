@@ -153,7 +153,6 @@ namespace SummerhouseFlipped
         private void Awake()
         {
             Log.Logger = Logger;
-            Log.Info($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
             harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
@@ -179,7 +178,6 @@ namespace SummerhouseFlipped
         [HarmonyPatch(typeof(SavedBuildingBlock), MethodType.Constructor)]
         public static void Postfix(BuildingBlock block, SavedBuildingBlock __instance)
         {
-            Log.Info($"{block.flipParent.localScale.y == -1f} yo");
             PatchedSavedBlockState[block.saveID] = block.flipParent.localScale.y == -1f;
 
         }
@@ -220,16 +218,11 @@ namespace SummerhouseFlipped
                     // TODO: see line 534 in BuildingBlock
                     //    BuildingBlock buildingBlock = Object.Instantiate(_block, position, Quaternion.identity);
                     // Somehow the flip info in localScale of flipparent is cleared I think and the block's "flipped" field is used to keep track
-                    Log.Info("HEELO STAN");
-                    Log.Info($"Flipped?: ${block.Flipped}");
-                    Log.Info($"localSCALE vbasetransformpositiont: HEY {JSONSTUFF.Serialize(block.transform.position)}");
-                    Log.Info($"localSCALE BASE LOCALSCALEt: HEY {JSONSTUFF.Serialize(block.transform.localScale)}");
-                    Log.Info($"localSCALE FLIPPAREnt: HEY {JSONSTUFF.Serialize(block.flipParent.localScale)}");
-                    Log.Info($"localSCALE:XXX HEY {JSONSTUFF.Serialize(block.transform.localScale.y)}");
-                    Log.Info($"localSCALE: HEY {JSONSTUFF.Serialize(block.transform.rotation)}");
-                    FlippedY = block.flipParent.localScale.y == -1f;
-                    Log.Info(block.flipParent.localScale.ToString());
-                    Log.Info(block.transform.localScale.ToString());
+                    var transformThatControlsFlip = block.pivotParent.GetChild(0).GetChild(0);
+
+
+
+                    FlippedY = transformThatControlsFlip.localScale.y == -1f;
                 }
                 catch (Exception exception)
                 {
@@ -250,42 +243,32 @@ namespace SummerhouseFlipped
         {
 
             public new List<SavedBuildingBlockExtended> buildingBlocks = new List<SavedBuildingBlockExtended>();
-            public SaveDataExtended()
+            public SaveDataExtended(bool willInitializeFromCurrentGameState = false)
             {
-                Log.Info("STAN STAn");
-                try
+                if (willInitializeFromCurrentGameState)
                 {
-                    //var defaultToJSON = JSONSTUFF.GetDefault();
-                    Log.Info("saveDataExtended constructor before foreach");
-                    Log.Info(Main.BuildingBlockPlacer.AllPlacedBlocks.GetType().ToString());
-                    Log.Info((Main.BuildingBlockPlacer.AllPlacedBlocks is null).ToString());
-                    foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
+                    try
                     {
-                        Log.Info("adding to list");
-                        Log.Info($"AllPlacedBlock: ${JSONSTUFF.Serialize(allPlacedBlock.flipParent.localScale)}");
-                        Log.Info($"AllPlacedBlock: ${JSONSTUFF.Serialize(allPlacedBlock.transform.localScale)}");
-                        Log.Info($"----------------------------------------");
-                        buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
-                    }
+                        //var defaultToJSON = JSONSTUFF.GetDefault();
+                        foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
+                        {
+                            buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
+                        }
 
-                    Log.Info("saveDataExtended constructor before version");
-                    saveGameVersion = Main.SaveGameManager.SaveGameVersion;
-                    Log.Info("saveDataExtended constructor before currentscenename");
-                    mapName = Main.SceneLoadManager.CurrentSceneName;
-                    Log.Info("saveDataExtended constructor before position");
-                    cameraPos = Main.CameraController.transform.position;
-                    if (Main.ColorManager != null)
+                        saveGameVersion = Main.SaveGameManager.SaveGameVersion;
+                        mapName = Main.SceneLoadManager.CurrentSceneName;
+                        cameraPos = Main.CameraController.transform.position;
+                        if (Main.ColorManager != null)
+                        {
+                            savedPalette = Main.ColorManager.activePalette;
+                        }
+                    }
+                    catch (Exception exception)
                     {
-                        savedPalette = Main.ColorManager.activePalette;
+                        Log.Error(exception.Message);
                     }
                 }
-                catch (Exception exception)
-                {
-                    Log.Info("saveDataExtended constructor exception");
-                    Log.Error(exception.Message);
-                    Log.Info("saveDataExtended constructor exception");
-                }
-                Log.Info("saveDataExtended constructor DONE");
+                // Else we are NewtonSoftJSON and don't want the above logic to run
             }
         }
 
@@ -298,7 +281,6 @@ namespace SummerhouseFlipped
             [HarmonyPatch("SaveGame")]
             public static bool Prefix(SaveGameManager __instance, int slotNumber, bool _isAutoSave = false)
             {
-                Log.Info("SAVE GAME PATCHING IS WORKING");
 
 
 
@@ -320,18 +302,15 @@ namespace SummerhouseFlipped
 
 
 
-                Log.Info("Bish");
 
 
                 string contents = "";
                 try
                 {
                     //var defaultToJSON = JSONSTUFF.GetDefault();
-                    contents = JSONSTUFF.Serialize(new SaveDataExtended());
-                    Log.Info("CONTENTS" + contents);
+                    contents = JSONSTUFF.Serialize(new SaveDataExtended(true));
 
                     File.WriteAllText(saveFilePath, contents);
-                    Log.Info("lalonde " + contents);
                     if (__instance.debugPrints)
                     {
                         UnityEngine.Debug.Log("Game Saved to slot " + slotNumber);
@@ -364,19 +343,17 @@ namespace SummerhouseFlipped
                 }
                 //var defaultToJSON = JSONSTUFF.GetDefault();
                 SaveDataExtended saveData = ReadSaveDataFromDiskExtended(saveFilePath);
-                //Log.Info($"Save data just after deserialization: {defaultToJSON(saveData)}");
-                if (saveData != null)
+                Log.Info($"saveData block length: ${saveData.buildingBlocks.Count} blocks.");
                 {
                     if (saveData.saveGameVersion != __instance.saveGameVersion)
                     {
                         return false;
                     }
 
-                    Log.Info("LOL SCREW YOU STAN");
                     Main.UIManager.FadeToBlackAndExecute(delegate
-                    {
-                        __instance.StartCoroutine(ApplySaveDataExtended(saveData, __instance));
-                    });
+{
+    __instance.StartCoroutine(ApplySaveDataExtended(saveData, __instance));
+});
                 }
 
                 if (__instance.debugPrints)
@@ -392,9 +369,12 @@ namespace SummerhouseFlipped
                 if (File.Exists(_saveFilePath))
                 {
                     string fileJSON = (File.ReadAllText(_saveFilePath));
+                    Log.Info($"Save file text: ${fileJSON}");
                     try
                     {
-                        return JSONSTUFF.Deserialize<SaveDataExtended>(fileJSON);
+                        var deserializedSaveData = JSONSTUFF.Deserialize<SaveDataExtended>(fileJSON);
+                        Log.Info($"Length of save data immediatelya after deserialization: ${deserializedSaveData.buildingBlocks.Count}");
+                        return deserializedSaveData;
                     }
                     catch (Exception exception)
                     {
@@ -425,20 +405,22 @@ namespace SummerhouseFlipped
                 Main.BuildingBlockPlacer.ClearAllBlocks();
 
                 var dummyBuildingBlock = UnityEngine.Object.Instantiate(Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(1));
-                Log.Info($"{dummyBuildingBlock is null}");
 
                 var initializedDummyBuildingBlock = dummyBuildingBlock;
 
                 SavedBuildingBlock dummySavedBuildingBlock = new(initializedDummyBuildingBlock);
-
+                Log.Info($"Count of buikldingBLocks in savedata = {_saveData.buildingBlocks.Count()}");
                 foreach (SavedBuildingBlockExtended savedBuildingBlockExtended in _saveData.buildingBlocks)
                 {
                     //TODO: Probably will just need to reimplement this taking an extended building block
-                    Log.Info("STAN WE TRYING TO RECREATESAVEDBLOCKLOL");
+
                     CurrentlyRecreatingSavedBuildingBlockExtended = savedBuildingBlockExtended;
                     Main.BuildingBlockPlacer.RecreateSavedBlock(dummySavedBuildingBlock);
-                    yield return null; // Yield after each block to prevent freezing
+
+
+
                 }
+                UnityEngine.Object.Destroy(dummyBuildingBlock);
 
                 Main.UIPopUpManager.PopUp(saveGameManagerInstance.gameLoadedPopup);
                 Main.UndoManager.ClearUndoHistory();
@@ -454,26 +436,26 @@ namespace SummerhouseFlipped
 
     }
 
-    class UndoManagerPatcher
-    {
-        [HarmonyPatch(typeof(UndoManager), "RegisterUndoStep")]
-        public static bool Prefix(UndoManager __instance)
-        {
+    //class UndoManagerPatcher
+    //{
+    //    [HarmonyPatch(typeof(UndoManager), "RegisterUndoStep")]
+    //    public static bool Prefix(UndoManager __instance)
+    //    {
 
-            {
-                if (__instance.currentIndex < __instance.undoHistory.Count - 1)
-                {
-                    __instance.undoHistory.RemoveRange(__instance.currentIndex + 1, __instance.undoHistory.Count - __instance.currentIndex - 1);
-                }
+    //        {
+    //            if (__instance.currentIndex < __instance.undoHistory.Count - 1)
+    //            {
+    //                __instance.undoHistory.RemoveRange(__instance.currentIndex + 1, __instance.undoHistory.Count - __instance.currentIndex - 1);
+    //            }
 
-                Log.Info("running undo clearer");
-                __instance.undoHistory.Add(new SaveGameProcess.SaveDataExtended());
-                __instance.currentIndex = __instance.undoHistory.Count - 1;
-            }
+    //            Log.Info("running undo clearer");
+    //            __instance.undoHistory.Add(new SaveGameProcess.SaveDataExtended());
+    //            __instance.currentIndex = __instance.undoHistory.Count - 1;
+    //        }
 
-            return false;
-        }
-    }
+    //        return false;
+    //    }
+    //}
 
     // Separate class for BuildingBlockPicker patches
     class BuildingBlockPickerPatch
@@ -484,7 +466,7 @@ namespace SummerhouseFlipped
             [HarmonyPrefix]
             public static void Prefix()
             {
-                Log.Info($"BuildingBlockPicker awakening");
+
             }
         }
 
@@ -496,8 +478,7 @@ namespace SummerhouseFlipped
         //    [HarmonyPrefix]
         //    public static bool Prefix(ref object __result)
         //    {
-        //        Log.Info($"BuildingBlockPickerYOOO");
-        //        // If you want to completely override the original method:
+        //                //        // If you want to completely override the original method:
         //        // __result = YourCustomImplementation();
         //        // return false;
 
@@ -512,8 +493,7 @@ namespace SummerhouseFlipped
 
 
         //        //FieldInfo paddingField = AccessTools.Field(typeof(BuildingBlockGridGenerator), "padding");
-        //        //Log.Info(paddingField.GetValue(__instance));
-        //        // If you want to allow the original method to run:
+        //        //        //        // If you want to allow the original method to run:
         //        return true;
         //    }
 
@@ -530,7 +510,6 @@ namespace SummerhouseFlipped
             public static void Postfix()
             {
                 //Main.GridVisualizer.showGrid = true;
-                Log.Info("HELLO AWAKE STAN ");
             }
         }
     }
@@ -547,8 +526,7 @@ namespace SummerhouseFlipped
                 //__instance.depthRange = new Vector2(0f, 3000f);
                 //__instance.depthIncrements = 5000f;
                 //__instance.gridPositionZ = 20f;
-                //Log.Info("set gridposition z");
-
+                //
 
 
                 return true;
@@ -560,8 +538,7 @@ namespace SummerhouseFlipped
                 //__instance.depthRange = new Vector2(0f, 3000f);
                 //__instance.depthIncrements = 5000f;
                 //__instance.gridPositionZ = 20f;
-                //Log.Info("set gridposition z");
-
+                //
 
 
             }
@@ -576,8 +553,7 @@ namespace SummerhouseFlipped
                 string callStack = stackTrace.ToString();
 
 
-                //Log.Info($"Original Position: {_originalPosition} gridSubDivisions {_gridSubdivisions}");
-                //UnityEngine.Debug.Log($"TargetMethod was called. Call stack:\n{callStack}");
+                //                //UnityEngine.Debug.Log($"TargetMethod was called. Call stack:\n{callStack}");
 
 
             }
@@ -592,8 +568,7 @@ namespace SummerhouseFlipped
             //public static bool Prefix(BuildingBlock __instance)
             //{
             //    __instance.zOffset = 75f;
-            //    Log.Info("patched block zOffset");
-            //    return true;
+            //                //    return true;
             //}
 
 
@@ -732,27 +707,23 @@ namespace SummerhouseFlipped
         //    }
 
         //    __result = buildingBlock;
-        //    Log.Info("lalonde" + buildingBlock.GetType().ToString());
-
+        //    
 
 
         //    return false; // Skip original method
         //}
 
-        [HarmonyPatch("PlaceBlock")]
-        public static bool Prefix(BuildingBlock _block, Vector2 _gridPosition, BuildingBlockPlacer __instance)
-        {
-            Log.Info($"baseParent of buildingBLockPlacer: ${__instance.transform.localScale}");
-        
+        //[HarmonyPatch("PlaceBlock")]
+        //public static bool Prefix(BuildingBlock _block, Vector2 _gridPosition, BuildingBlockPlacer __instance)
+        //{
 
-            Vector3 position = new Vector3(_gridPosition.x, _gridPosition.y, Main.GridManager.GridPositionZ);
 
-            BuildingBlock buildingBlockTESTCOPY = UnityEngine.Object.Instantiate(_block, position, Quaternion.identity);
-            Log.Info($"{JSONSTUFF.Serialize(buildingBlockTESTCOPY)}");
+        //    Vector3 position = new Vector3(_gridPosition.x, _gridPosition.y, Main.GridManager.GridPositionZ);
 
-            Log.Info($"placedBlock ${buildingBlockTESTCOPY.GetPivotPosition}");
-            return true;
-        }
+        //    //BuildingBlock buildingBlockTESTCOPY = UnityEngine.Object.Instantiate(_block, position, Quaternion.identity);
+        //    //
+        //    //            return true;
+        //}
 
 
         [HarmonyPatch("ToggleForceFlip")]
@@ -763,7 +734,6 @@ namespace SummerhouseFlipped
             if (Plugin.yFlipCount == 3)
             {
                 Plugin.isBlockPlacerFlippedY = !Plugin.isBlockPlacerFlippedY;
-                Log.Info("isBlockPlacerFlippedY?:" + Plugin.isBlockPlacerFlippedY);
                 Plugin.yFlipCount = 1;
             }
 
@@ -777,14 +747,11 @@ namespace SummerhouseFlipped
         public static bool Prefix(SavedBuildingBlock _block, BuildingBlockPlacer __instance)
         {
             var _dummyBlock = _block;
-            Log.Info($"NUMBER 5 IS ALIVE!");
             SaveGameProcess.SavedBuildingBlockExtended savedBlockExtended = SaveGameProcess.SaveGameManagerPatcher.CurrentlyRecreatingSavedBuildingBlockExtended;
             BuildingBlock blockByID = Main.SaveGameManager.buildingBlockLibrary.GetBlockByID(savedBlockExtended.blockID);
             if (blockByID != null)
             {
                 BuildingBlock buildingBlock = UnityEngine.Object.Instantiate(blockByID);
-                Log.Info($"_block.flippedY: {savedBlockExtended.FlippedY.ToString()}");
-                Log.Info($"Before recreating saved block is: {JSONSTUFF.Serialize(savedBlockExtended)}");
 
                 buildingBlock.transform.parent = __instance.transform;
                 buildingBlock.transform.position = savedBlockExtended.position;
@@ -800,7 +767,6 @@ namespace SummerhouseFlipped
                 }
 
                 // TODO: figure out why flipping alternates sometimes when loading same file over and over.....
-                Log.Info($"Recreated saved block: {buildingBlock.flipParent.localScale}");
 
             }
             return false;
@@ -823,7 +789,6 @@ namespace SummerhouseFlipped
             [HarmonyPrefix]
             public static bool Prefix()
             {
-                Log.Info($"dialogue opening");
                 return true;
             }
         }
@@ -839,7 +804,6 @@ namespace SummerhouseFlipped
             public static void Postfix()
             {
                 Main.CameraController.minMaxPosX = new Vector2(-2000f, 2000f);
-                Log.Info($"set expanded camera range");
 
             }
         }
