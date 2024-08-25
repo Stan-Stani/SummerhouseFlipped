@@ -5,7 +5,7 @@
 
 ## Install Instructions
 1. Install [BepInEx 5.4.23.2](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.2) in your Steam Summerhouse directory
-> See https://docs.bepinex.dev/articles/user_guide/installation/index.html if you need more info
+    - See https://docs.bepinex.dev/articles/user_guide/installation/index.html if you need more info
 1. Grab the latest release and put it in the bepinex/plugins folder
 
 ## Features
