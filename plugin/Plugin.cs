@@ -587,7 +587,7 @@ namespace SummerhouseFlipped
     class CameraBoundariesPatch
     {
         /// <summary>
-        /// Let the camera (and thus blocks be placed) much further in the left and right directions. 
+        /// Let the camera move (and thus blocks be placed) much further in the left and right directions. 
         /// </summary>
         [HarmonyPatch(typeof(CameraBoundaries), "SetBoundaries")]
         public static class SetBoundariesPatch

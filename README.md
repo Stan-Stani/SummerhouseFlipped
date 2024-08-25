@@ -2,18 +2,25 @@
 
 [Steam Discussion Thread](https://steamcommunity.com/app/2533960/discussions/0/4520010433851923604/)
 
+
+## Install Instructions
+1. Install BepInEx 5.4.23.2 in your Steam Summerhouse directory
+1. Grab the latest release and put it in the bepinex/plugins folder
+
+## Features
+- Increase minimum and maximum depth of block placement
+- Flip objects vertically
+   - Save and load vertically flipped blocks!
+- Move camera (and thus place block) much further in the left and right directions
+
+
+
 ## Todo
 
-
-- [ ] In very early stages, so no download yet, but I'll get one up soon.
 - [ ] Build instructions for devs
 
 
-## Implemented
-- Increase minimum and maximum depth of block placement
-- Flip objects vertically
-    - [X] Save and load vertically flipped blocks!
-    - [ ] Bug: Sometimes doesn't load blocks vertically flipped
+
 
 ## Ideas
 
