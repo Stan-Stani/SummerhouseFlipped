@@ -37,102 +37,6 @@ namespace SummerhouseFlipped
         public static void Debug(string message) => Logger.LogDebug(message);
     }
 
-    public static class JSONSTUFF
-    {
-        // Thanks Claude Sonnet 3.5!
-        public class SpecificPropertiesContractResolver : DefaultContractResolver
-        {
-            private readonly Dictionary<Type, HashSet<string>> _includeProperties;
-
-            public SpecificPropertiesContractResolver()
-            {
-                _includeProperties = new Dictionary<Type, HashSet<string>>();
-            }
-
-            public void IncludeProperties(Type type, params string[] propertyNames)
-            {
-                if (!_includeProperties.ContainsKey(type))
-                    _includeProperties[type] = new HashSet<string>();
-
-                foreach (var name in propertyNames)
-                    _includeProperties[type].Add(name);
-            }
-
-            protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
-            {
-                var allProperties = base.CreateProperties(type, memberSerialization);
-
-                if (_includeProperties.TryGetValue(type, out HashSet<string> includeProperties))
-                {
-                    return allProperties.Where(p => includeProperties.Contains(p.PropertyName)).ToList();
-                }
-
-                return allProperties;
-            }
-
-
-
-        }
-
-        public static string Serialize(object obj)
-        {
-            var resolver = new SpecificPropertiesContractResolver();
-            resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
-            JsonSerializerSettings settings = new JsonSerializerSettings
-            {
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                ContractResolver = resolver,
-                Error = (sender, args) =>
-                {
-                    Log.Error($"SERIALIZATION ERROR: {args.ErrorContext.Error.Message}");
-
-                    Log.Error($"SERIALIZATION ERROR CONTINUED: Current Object: {args.CurrentObject}");
-                    Log.Error($"SERIALIZATION ERROR CONTINUED: Member: {args.ErrorContext.Member}");
-                    Log.Error($"SERIALIZATION ERROR CONTINUED: Original Object: {args.ErrorContext.OriginalObject}");
-                    Log.Error($"SERIALIZATION ERROR CONTINUED: Path: ${args.ErrorContext.Path}");
-                    //Log.Error($"SERIALIZATION ERROR CONTINUED: Stack: {args.ErrorContext.Error.StackTrace}");
-
-                    //args.ErrorContext.Handled = true;
-
-                }
-            };
-
-            return JsonConvert.SerializeObject(obj, settings);
-        }
-
-        public static T Deserialize<T>(string str)
-        {
-            var resolver = new SpecificPropertiesContractResolver();
-            resolver.IncludeProperties(typeof(UnityEngine.Vector3), "x", "y", "z");
-            JsonSerializerSettings settings = new JsonSerializerSettings
-            {
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                ContractResolver = resolver,
-                Error = (sender, args) =>
-                {
-                    Log.Error($"DE-SERIALIZATION ERROR: {args.ErrorContext.Error.Message}");
-                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Current Object: {args.CurrentObject}");
-                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Member: {args.ErrorContext.Member}");
-                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Original Object: {args.ErrorContext.OriginalObject}");
-                    Log.Error($"DE-SERIALIZATION ERROR CONTINUED: Path: ${args.ErrorContext.Path}");
-                    //Log.Error($"De-SERIALIZATION ERROR CONTINUED: Stack: {args.ErrorContext.Error.StackTrace}");
-
-                    //args.ErrorContext.Handled = true;
-
-                }
-            };
-
-            return JsonConvert.DeserializeObject<T>(str, settings);
-        }
-
-
-
-        static JsonSerializerSettings settings = new JsonSerializerSettings
-        {
-            ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-            ContractResolver = new SpecificPropertiesContractResolver(),
-        };
-    }
 
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
@@ -143,12 +47,9 @@ namespace SummerhouseFlipped
 
         internal static ManualLogSource PluginLogger;
 
-
-        SaveData SaveData;
-
         // Global state, cuz I'm dumb and lazy
         internal static bool isBlockPlacerFlippedY = false;
-        internal static int yFlipCount = 0;
+        internal static int yFlipCount = 1;
 
         private void Awake()
         {
@@ -164,25 +65,6 @@ namespace SummerhouseFlipped
         }
     }
 
-    public static class SavedBuildingBlockPatcher
-    {
-
-        /// <summary>
-        /// Id, isFlippedY
-        /// </summary>
-        public static Dictionary<int, bool> PatchedSavedBlockState = new();
-        public static bool flippedY = false;
-
-        // Gotta dynamically look at transofform vector of block to determine if it's y flipped
-        // then save it to the dictionary and use tht for serialization on save
-        [HarmonyPatch(typeof(SavedBuildingBlock), MethodType.Constructor)]
-        public static void Postfix(BuildingBlock block, SavedBuildingBlock __instance)
-        {
-            PatchedSavedBlockState[block.saveID] = block.flipParent.localScale.y == -1f;
-
-        }
-    }
-
     public static class SaveGameProcess
     {
 
@@ -193,6 +75,7 @@ namespace SummerhouseFlipped
             public bool FlippedY = false;
 
 
+            // These other fields are just a reimplementation of the original SavedBuildingBlock
             public Vector3 position;
 
             public bool flipped;
@@ -215,13 +98,15 @@ namespace SummerhouseFlipped
 
                 try
                 {
-                    // TODO: see line 534 in BuildingBlock
-                    //    BuildingBlock buildingBlock = Object.Instantiate(_block, position, Quaternion.identity);
-                    // Somehow the flip info in localScale of flipparent is cleared I think and the block's "flipped" field is used to keep track
+                    // Don't understand why there're is this 2 child deep chain I have to check
+                    // I don't know Unity well enough but Anthropic's Claude says that
+                    // prefabs can have more information that gets setup behind the scenes and that that's
+                    // possibly where this child and grandchild come from, because I don't see them
+                    // added in the vanilla code anywhere... Only reason I know they're there is
+                    // Unity Explorer, thank goodness for it.
                     var transformThatControlsFlip = block.pivotParent.GetChild(0).GetChild(0);
 
-
-
+                    // We can tell it's Y flipped literally just from looking at this Transform
                     FlippedY = transformThatControlsFlip.localScale.y == -1f;
                 }
                 catch (Exception exception)
@@ -236,20 +121,22 @@ namespace SummerhouseFlipped
         }
 
 
-
-
         [Serializable]
         public class SaveDataExtended : SaveData
         {
 
             public new List<SavedBuildingBlockExtended> buildingBlocks = new List<SavedBuildingBlockExtended>();
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="willInitializeFromCurrentGameState">So that when JSON serializer uses this constructor
+            /// it gets an effectively empty constructor.</param>
             public SaveDataExtended(bool willInitializeFromCurrentGameState = false)
             {
                 if (willInitializeFromCurrentGameState)
                 {
                     try
                     {
-                        //var defaultToJSON = JSONSTUFF.GetDefault();
                         foreach (BuildingBlock allPlacedBlock in Main.BuildingBlockPlacer.AllPlacedBlocks)
                         {
                             buildingBlocks.Add(new SavedBuildingBlockExtended(allPlacedBlock));
@@ -268,7 +155,6 @@ namespace SummerhouseFlipped
                         Log.Error(exception.Message);
                     }
                 }
-                // Else we are NewtonSoftJSON and don't want the above logic to run
             }
         }
 
@@ -281,10 +167,6 @@ namespace SummerhouseFlipped
             [HarmonyPatch("SaveGame")]
             public static bool Prefix(SaveGameManager __instance, int slotNumber, bool _isAutoSave = false)
             {
-
-
-
-
                 if (!_isAutoSave)
                 {
                     Main.AudioManager.PlayGameSaved();
@@ -297,18 +179,10 @@ namespace SummerhouseFlipped
                 }
 
 
-
-
-
-
-
-
-
                 string contents = "";
                 try
                 {
-                    //var defaultToJSON = JSONSTUFF.GetDefault();
-                    contents = JSONSTUFF.Serialize(new SaveDataExtended(true));
+                    contents = JSON.Serialize(new SaveDataExtended(true));
 
                     File.WriteAllText(saveFilePath, contents);
                     if (__instance.debugPrints)
@@ -341,7 +215,6 @@ namespace SummerhouseFlipped
                 {
                     return false;
                 }
-                //var defaultToJSON = JSONSTUFF.GetDefault();
                 SaveDataExtended saveData = ReadSaveDataFromDiskExtended(saveFilePath);
                 Log.Info($"saveData block length: ${saveData.buildingBlocks.Count} blocks.");
                 {
@@ -351,9 +224,9 @@ namespace SummerhouseFlipped
                     }
 
                     Main.UIManager.FadeToBlackAndExecute(delegate
-{
-    __instance.StartCoroutine(ApplySaveDataExtended(saveData, __instance));
-});
+                    {
+                        __instance.StartCoroutine(ApplySaveDataExtended(saveData, __instance));
+                    });
                 }
 
                 if (__instance.debugPrints)
@@ -372,8 +245,7 @@ namespace SummerhouseFlipped
                     Log.Info($"Save file text: ${fileJSON}");
                     try
                     {
-                        var deserializedSaveData = JSONSTUFF.Deserialize<SaveDataExtended>(fileJSON);
-                        Log.Info($"Length of save data immediatelya after deserialization: ${deserializedSaveData.buildingBlocks.Count}");
+                        var deserializedSaveData = JSON.Deserialize<SaveDataExtended>(fileJSON);
                         return deserializedSaveData;
                     }
                     catch (Exception exception)
@@ -412,13 +284,9 @@ namespace SummerhouseFlipped
                 Log.Info($"Count of buikldingBLocks in savedata = {_saveData.buildingBlocks.Count()}");
                 foreach (SavedBuildingBlockExtended savedBuildingBlockExtended in _saveData.buildingBlocks)
                 {
-                    //TODO: Probably will just need to reimplement this taking an extended building block
 
                     CurrentlyRecreatingSavedBuildingBlockExtended = savedBuildingBlockExtended;
                     Main.BuildingBlockPlacer.RecreateSavedBlock(dummySavedBuildingBlock);
-
-
-
                 }
                 UnityEngine.Object.Destroy(dummyBuildingBlock);
 
@@ -435,29 +303,8 @@ namespace SummerhouseFlipped
 
 
     }
-
-    //class UndoManagerPatcher
-    //{
-    //    [HarmonyPatch(typeof(UndoManager), "RegisterUndoStep")]
-    //    public static bool Prefix(UndoManager __instance)
-    //    {
-
-    //        {
-    //            if (__instance.currentIndex < __instance.undoHistory.Count - 1)
-    //            {
-    //                __instance.undoHistory.RemoveRange(__instance.currentIndex + 1, __instance.undoHistory.Count - __instance.currentIndex - 1);
-    //            }
-
-    //            Log.Info("running undo clearer");
-    //            __instance.undoHistory.Add(new SaveGameProcess.SaveDataExtended());
-    //            __instance.currentIndex = __instance.undoHistory.Count - 1;
-    //        }
-
-    //        return false;
-    //    }
-    //}
-
-    // Separate class for BuildingBlockPicker patches
+    
+    // Not used yet
     class BuildingBlockPickerPatch
     {
         [HarmonyPatch(typeof(BuildingBlockPicker), "Awake")]
@@ -470,37 +317,10 @@ namespace SummerhouseFlipped
             }
         }
 
-        //[HarmonyPatch]
-        //public static class GetNextBuildingBlockPatch
-        //{
 
-
-        //    [HarmonyPrefix]
-        //    public static bool Prefix(ref object __result)
-        //    {
-        //                //        // If you want to completely override the original method:
-        //        // __result = YourCustomImplementation();
-        //        // return false;
-
-
-
-
-        //        Main.CameraController.minMaxPosX = new Vector2(-2000f, 2000f); 
-
-
-
-
-
-
-        //        //FieldInfo paddingField = AccessTools.Field(typeof(BuildingBlockGridGenerator), "padding");
-        //        //        //        // If you want to allow the original method to run:
-        //        return true;
-        //    }
-
-
-        //}
     }
 
+    // Not used yet
     class MainPatch
     {
         [HarmonyPatch(typeof(Main), "Awake")]
@@ -514,6 +334,7 @@ namespace SummerhouseFlipped
         }
     }
 
+    // For enabling the debug grid, just for fun.
     class GridManagerPatch
     {
         [HarmonyPatch(typeof(GridManager), "Awake")]
@@ -697,40 +518,13 @@ namespace SummerhouseFlipped
     [HarmonyPatch(typeof(BuildingBlockPlacer))]
     public static class BuildingBlockPlacerPatcher
     {
-        //[HarmonyPatch("GetNextBlock")]
-        //public static bool Prefix(bool _repeatLastBlock, BuildingBlockPlacer __instance, ref BuildingBlock __result)
-        //{
-        //    BuildingBlock buildingBlock = _repeatLastBlock ? Main.BuildingBlockPicker.GetLastPickedBlockAgain() : Main.BuildingBlockPicker.GetNextBuildingBlock();
-        //    if (__instance.debugPrints)
-        //    {
-        //        UnityEngine.Debug.Log("Picked next Building Block: " + buildingBlock.gameObject.name);
-        //    }
-
-        //    __result = buildingBlock;
-        //    
-
-
-        //    return false; // Skip original method
-        //}
-
-        //[HarmonyPatch("PlaceBlock")]
-        //public static bool Prefix(BuildingBlock _block, Vector2 _gridPosition, BuildingBlockPlacer __instance)
-        //{
-
-
-        //    Vector3 position = new Vector3(_gridPosition.x, _gridPosition.y, Main.GridManager.GridPositionZ);
-
-        //    //BuildingBlock buildingBlockTESTCOPY = UnityEngine.Object.Instantiate(_block, position, Quaternion.identity);
-        //    //
-        //    //            return true;
-        //}
 
 
         [HarmonyPatch("ToggleForceFlip")]
         public static void Postfix()
         {
             ++Plugin.yFlipCount;
-            // Toggle on 3rd click, then every 2
+            // Toggle every 2 clicks
             if (Plugin.yFlipCount == 3)
             {
                 Plugin.isBlockPlacerFlippedY = !Plugin.isBlockPlacerFlippedY;
@@ -766,7 +560,6 @@ namespace SummerhouseFlipped
 
                 }
 
-                // TODO: figure out why flipping alternates sometimes when loading same file over and over.....
 
             }
             return false;
@@ -776,9 +569,6 @@ namespace SummerhouseFlipped
 
 
     }
-
-
-
 
     // Separate class for SaveLoadConfirmDialogue patches
     class SaveLoadConfirmDialoguePatch
@@ -796,7 +586,9 @@ namespace SummerhouseFlipped
 
     class CameraBoundariesPatch
     {
-
+        /// <summary>
+        /// Let the camera (and thus blocks be placed) much further in the left and right directions. 
+        /// </summary>
         [HarmonyPatch(typeof(CameraBoundaries), "SetBoundaries")]
         public static class SetBoundariesPatch
         {
